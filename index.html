@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Roleta da Sorte - Faculdade Diniz</title>
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        /* --- ESTILOS GERAIS --- */
+        * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, sans-serif; }
+        body { margin: 0; background-color: #c4121a; display: flex; justify-content: center; align-items: center; min-height: 100vh; overflow: hidden; }
+
+        /* --- TELA DE LOGIN --- */
+        #login-screen { background-color: #c4121a; width: 100%; max-width: 400px; padding: 20px; text-align: center; display: flex; flex-direction: column; gap: 15px; z-index: 10; }
+        .header-title { color: white; font-size: 2.2rem; font-weight: bold; margin-bottom: 10px; margin-top: 10px; }
+        .form-logo-footer { display: flex; justify-content: center; margin-top: 20px; }
+        .form-logo-footer img { max-width: 180px; height: auto; }
+
+        input { width: 100%; padding: 15px; border-radius: 8px; border: none; font-size: 1rem; outline: none; }
+        .login-btn { width: 100%; padding: 15px; border-radius: 50px; border: none; background-color: #ffcc00; color: black; font-weight: bold; font-size: 1.2rem; cursor: pointer; margin-top: 10px; box-shadow: 0 4px 0 #b38f00; transition: 0.1s; }
+        .login-btn:active { transform: translateY(4px); box-shadow: none; }
+
+        /* --- TELA DE CONFIGURAÇÃO (ADMIN) --- */
+        #admin-screen { display: none; flex-direction: column; background-color: #c4121a; width: 100%; max-width: 500px; padding: 20px; height: 100vh; overflow-y: auto; }
+        .admin-header { color: white; text-align: center; margin-bottom: 20px; border-bottom: 1px solid rgba(255,255,255,0.3); padding-bottom: 10px; }
+        .config-group { background: rgba(0,0,0,0.2); padding: 15px; border-radius: 10px; margin-bottom: 10px; }
+        .config-label { color: #ffcc00; font-weight: bold; display: block; margin-bottom: 5px; text-align: left; }
+        .slice-config-row { display: flex; gap: 5px; margin-bottom: 8px; }
+        .slice-config-row input { padding: 10px; font-size: 0.9rem; }
+        
+        /* Checkbox aumentado e estilizado */
+        .toggle-container { 
+            display: flex; 
+            align-items: center; 
+            justify-content: center;
+            gap: 15px; 
+            color: white; 
+            margin: 20px 0; 
+            cursor: pointer; 
+            font-size: 1.2rem; 
+            font-weight: bold;
+            background: rgba(0,0,0,0.3);
+            padding: 15px;
+            border-radius: 10px;
+        }
+        .toggle-container input[type="checkbox"] {
+            width: 25px;
+            height: 25px;
+            cursor: pointer;
+        }
+
+        /* --- TELA DA ROLETA --- */
+        #game-screen { display: none; flex-direction: column; align-items: center; position: relative; width: 100%; height: 100vh; justify-content: center; }
+        .marker { width: 0; height: 0; border-left: 20px solid transparent; border-right: 20px solid transparent; border-top: 40px solid #ffcc00; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -255px); z-index: 100; filter: drop-shadow(0 2px 4px rgba(0,0,0,0.4)); }
+        .wheel-container { position: relative; width: 420px; height: 420px; border-radius: 50%; border: 12px solid #8a0c12; box-shadow: 0 10px 50px rgba(0,0,0,0.5); }
+        .wheel { width: 100%; height: 100%; border-radius: 50%; position: relative; overflow: hidden; transition: transform 5s cubic-bezier(0.15, 0, 0.15, 1); }
+        .prize-item { position: absolute; top: 0; left: 50%; transform-origin: 50% 210px; width: 100px; margin-left: -50px; height: 210px; display: flex; justify-content: center; align-items: flex-start; padding-top: 40px; font-weight: 900; font-size: 1.5rem; text-align: center; }
+        .center-logo { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 125px; height: 125px; background-color: white; border-radius: 50%; z-index: 50; display: flex; justify-content: center; align-items: center; }
+        .center-logo img { width: 85%; height: auto; }
+        .spin-btn { margin-top: 40px; width: 240px; padding: 18px; border-radius: 50px; border: none; background-color: #ffcc00; color: black; font-weight: bold; font-size: 1.4rem; cursor: pointer; box-shadow: 0 4px 0 #b38f00; }
+
+        /* --- MODAL --- */
+        .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.85); z-index: 200; justify-content: center; align-items: center; }
+        .modal-content { background: white; padding: 40px; border-radius: 20px; text-align: center; max-width: 350px; border: 4px solid #ffcc00; }
+        .discount-display { font-size: 3rem; font-weight: 900; color: #c4121a; margin: 15px 0; }
+
+        @media (max-width: 450px) {
+            .wheel-container { width: 340px; height: 340px; }
+            .prize-item { transform-origin: 50% 170px; height: 170px; font-size: 1.1rem; }
+            .marker { transform: translate(-50%, -200px); }
+        }
+    </style>
+</head>
+<body>
+
+    <audio id="spin-sound" src="spin.mp3" preload="auto"></audio>
+
+    <div id="login-screen">
+        <div class="header-title">🎯 Faculdade Diniz</div>
+        <input type="text" id="input-name" placeholder="Nome completo">
+        <input type="text" id="input-cpf" placeholder="CPF" maxlength="14" oninput="maskCPF(this)">
+        <input type="password" id="input-pass" placeholder="Acesso gerência">
+        <div id="login-error" style="color: #ffcccc; font-size: 0.9rem; min-height: 20px; font-weight: bold;"></div>
+        <button class="login-btn" onclick="validateAndLogin()">Entrar</button>
+        <div class="form-logo-footer"><img src="login.png" alt="Óticas Diniz"></div>
+    </div>
+
+    <div id="admin-screen">
+        <h2 class="admin-header">⚙️ Configuração</h2>
+        
+        <div class="config-group">
+            <label class="config-label">Quantas fatias?</label>
+            <input type="number" id="num-slices" value="6" min="2" max="12" onchange="generateSliceInputs()">
+        </div>
+
+        <div id="slices-container"></div>
+
+        <label class="toggle-container">
+            <input type="checkbox" id="enable-cpf-toggle" checked onchange="toggleCpfField()">
+            Exibir campo de CPF
+        </label>
+
+        <button class="login-btn" onclick="applyConfigAndPlay()">SALVAR E JOGAR</button>
+    </div>
+
+    <div id="game-screen">
+        <div class="marker"></div>
+        <div class="wheel-container">
+            <div class="wheel" id="wheel"></div>
+            <div class="center-logo"><img src="logo-diniz.png" alt="Óticas Diniz"></div>
+        </div>
+        <button class="spin-btn" id="btn-spin" onclick="spinWheel()">GIRAR AGORA</button>
+    </div>
+
+    <div class="modal" id="result-modal">
+        <div class="modal-content">
+            <h2 style="margin:0; color: #c4121a;">PARABÉNS!</h2>
+            <p id="winner-msg" style="margin-top: 10px;"></p>
+            <div class="discount-display" id="result-value">0%</div>
+            <p style="font-weight: bold;">GARANTIDO PARA VOCÊ!</p>
+            <button class="login-btn" onclick="location.reload()">FECHAR</button>
+        </div>
+    </div>
+
+    <script>
+        const MASTER_PASS = "Diniz";
+        const DISCORD_WEBHOOK = "https://discord.com/api/webhooks/1471874552740053186/VT2uGG1Jn86F35XDfRmp0BESXZz077JuwoexX-jxIBEAd5vNr-hx9CoUxYuEewTIObx-"; 
+
+        let cpfEnabled = localStorage.getItem('cpf_visible') !== 'false';
+        let savedPrizes = localStorage.getItem('roleta_config');
+        let PRIZES = savedPrizes ? JSON.parse(savedPrizes) : [
+            { label: "2% OFF", chance: 0.50 },
+            { label: "5% OFF", chance: 0.25 },
+            { label: "10% OFF", chance: 0.15 },
+            { label: "VR", chance: 0.048 },
+            { label: "50% OFF", chance: 0.05 },
+            { label: "100% OFF", chance: 0.002 }
+        ];
+
+        let currentUser = { name: "", cpf: "", isManager: false };
+
+        document.getElementById('enable-cpf-toggle').checked = cpfEnabled;
+        toggleCpfField();
+
+        function toggleCpfField() {
+            cpfEnabled = document.getElementById('enable-cpf-toggle').checked;
+            document.getElementById('input-cpf').style.display = cpfEnabled ? 'block' : 'none';
+            localStorage.setItem('cpf_visible', cpfEnabled);
+        }
+
+        function isValidCPF(cpf) {
+            cpf = cpf.replace(/[^\d]+/g, '');
+            if (cpf.length != 11 || /^(\d)\1{10}$/.test(cpf)) return false;
+            let add = 0;
+            for (let i=0; i < 9; i ++) add += parseInt(cpf.charAt(i)) * (10 - i);
+            let rev = 11 - (add % 11);
+            if (rev == 10 || rev == 11) rev = 0;
+            if (rev != parseInt(cpf.charAt(9))) return false;
+            add = 0;
+            for (let i = 0; i < 10; i ++) add += parseInt(cpf.charAt(i)) * (11 - i);
+            rev = 11 - (add % 11);
+            if (rev == 10 || rev == 11) rev = 0;
+            return rev == parseInt(cpf.charAt(10));
+        }
+
+        function maskCPF(i) {
+            let v = i.value.replace(/\D/g, "");
+            v = v.replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d)/, "$1.$2").replace(/(\d{3})(\d{1,2})$/, "$1-$2");
+            i.value = v;
+        }
+
+        function validateAndLogin() {
+            const name = document.getElementById('input-name').value;
+            const cpfValue = document.getElementById('input-cpf').value;
+            const pass = document.getElementById('input-pass').value;
+            const error = document.getElementById('login-error');
+            const cleanCPF = cpfValue.replace(/\D/g, "");
+
+            error.innerText = "";
+
+            if (pass.length > 0) {
+                if (pass === MASTER_PASS) {
+                    currentUser = { name: name || "Gerente", cpf: "Admin", isManager: true };
+                    showAdmin();
+                    return;
+                } else {
+                    error.innerText = "Senha de gerência incorreta!";
+                    return;
+                }
+            }
+
+            if (name.length < 3) {
+                error.innerText = "Digite seu nome completo.";
+                return;
+            }
+
+            if (cpfEnabled) {
+                if (!isValidCPF(cleanCPF)) {
+                    error.innerText = "CPF inválido!";
+                    return;
+                }
+                const jogados = JSON.parse(localStorage.getItem('cpfs_jogados') || "[]");
+                if (jogados.includes(cleanCPF)) {
+                    error.innerText = "Este CPF já participou!";
+                    return;
+                }
+            }
+
+            currentUser = { name: name, cpf: cleanCPF, isManager: false };
+            setupWheel(); 
+            showGame();
+        }
+
+        function showAdmin() {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('admin-screen').style.display = 'flex';
+            document.getElementById('num-slices').value = PRIZES.length;
+            generateSliceInputs();
+        }
+
+        function showGame() {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('admin-screen').style.display = 'none';
+            document.getElementById('game-screen').style.display = 'flex';
+        }
+
+        function generateSliceInputs() {
+            const count = parseInt(document.getElementById('num-slices').value);
+            const container = document.getElementById('slices-container');
+            container.innerHTML = ''; 
+            for (let i = 0; i < count; i++) {
+                const row = document.createElement('div');
+                row.className = 'slice-config-row';
+                let label = PRIZES[i] ? PRIZES[i].label : `Prêmio ${i+1}`;
+                let chance = PRIZES[i] ? (PRIZES[i].chance * 100).toFixed(1) : 10;
+                row.innerHTML = `<input type="text" class="slice-label" value="${label}"><input type="number" class="slice-chance" value="${chance}">`;
+                container.appendChild(row);
+            }
+        }
+
+        function applyConfigAndPlay() {
+            const labels = document.querySelectorAll('.slice-label');
+            const chances = document.querySelectorAll('.slice-chance');
+            let newPrizes = [];
+            let total = 0;
+            chances.forEach(c => total += parseFloat(c.value));
+            labels.forEach((l, i) => {
+                newPrizes.push({ label: l.value, chance: parseFloat(chances[i].value) / total });
+            });
+            PRIZES = newPrizes;
+            localStorage.setItem('roleta_config', JSON.stringify(PRIZES));
+            setupWheel();
+            showGame();
+        }
+
+        function setupWheel() {
+            const wheel = document.getElementById('wheel');
+            wheel.innerHTML = '';
+            const num = PRIZES.length;
+            const angle = 360 / num;
+            let grads = [];
+            for (let i = 0; i < num; i++) {
+                const color = i % 2 === 0 ? '#ffffff' : '#c4121a';
+                grads.push(`${color} ${i * angle}deg ${(i + 1) * angle}deg`);
+                const item = document.createElement('div');
+                item.className = 'prize-item';
+                item.innerText = PRIZES[i].label;
+                item.style.transform = `rotate(${(i * angle) + (angle / 2)}deg)`;
+                item.style.color = i % 2 === 0 ? '#c4121a' : '#ffffff';
+                wheel.appendChild(item);
+            }
+            wheel.style.background = `conic-gradient(${grads.join(', ')})`;
+        }
+
+        function spinWheel() {
+            const btn = document.getElementById('btn-spin');
+            const wheel = document.getElementById('wheel');
+            btn.disabled = true;
+
+            let rand = Math.random();
+            let accum = 0;
+            let winnerIndex = 0;
+            for (let i = 0; i < PRIZES.length; i++) {
+                accum += PRIZES[i].chance;
+                if (rand <= accum) { winnerIndex = i; break; }
+            }
+
+            const sliceAngle = 360 / PRIZES.length;
+            const finalRotation = 3600 + (360 - (winnerIndex * sliceAngle + sliceAngle / 2));
+            
+            const audio = document.getElementById('spin-sound');
+            if(audio) audio.play();
+            
+            wheel.style.transform = `rotate(${finalRotation}deg)`;
+
+            setTimeout(() => {
+                if (!currentUser.isManager && cpfEnabled) {
+                    const jogados = JSON.parse(localStorage.getItem('cpfs_jogados') || "[]");
+                    jogados.push(currentUser.cpf);
+                    localStorage.setItem('cpfs_jogados', JSON.stringify(jogados));
+                }
+                
+                confetti({ 
+                    particleCount: 150, 
+                    spread: 70, 
+                    origin: { y: 0.6 },
+                    zIndex: 999 
+                });
+                
+                sendToDiscord(currentUser.name, PRIZES[winnerIndex].label, currentUser.cpf, currentUser.isManager);
+                
+                document.getElementById('winner-msg').innerText = `${currentUser.name.split(' ')[0]}, seu prêmio:`;
+                document.getElementById('result-value').innerText = PRIZES[winnerIndex].label;
+                document.getElementById('result-modal').style.display = 'flex';
+            }, 5000);
+        }
+
+        async function sendToDiscord(ganhador, prêmio, cpf, isManager) {
+            const payload = {
+                content: `🎉 **NOVO PRÊMIO SORTEADO!**`,
+                embeds: [{
+                    title: "Resultado - Faculdade Diniz",
+                    color: 12849690,
+                    fields: [
+                        { name: "👤 Nome", value: ganhador, inline: true },
+                        { name: "📄 CPF", value: cpf || "Desativado", inline: true },
+                        { name: "🎁 Prêmio", value: `**${prêmio}**`, inline: false },
+                        { name: "🛠️ Modo", value: isManager ? "Gerência" : "Cliente", inline: true }
+                    ],
+                    footer: { text: `Data: ${new Date().toLocaleString('pt-BR')}` }
+                }]
+            };
+            fetch(DISCORD_WEBHOOK, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+        }
+
+        setupWheel();
+    </script>
+</body>
+</html>
